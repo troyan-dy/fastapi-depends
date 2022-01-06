@@ -1,6 +1,6 @@
 # fastapi-depends
 
-Use your FastAPI dependencies in plain python code
+You can use your FastAPI dependencies not only in FastAPI applications
 
 [PYPI](https://pypi.org/project/fastapi-depends/)
 
