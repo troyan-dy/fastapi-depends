@@ -25,7 +25,7 @@ poetry add fastapi-depends
 ```python
 import asyncio
 
-from fastapi import Depends as _
+from fastapi import Depends
 from fastapi_depends import inject
 
 
@@ -34,7 +34,7 @@ async def str_dep():
 
 
 @inject
-async def main(pos_value: str, regular_value: str, str_dep=_(str_dep)):
+async def main(pos_value: str, regular_value: str, str_dep=Depends(str_dep)):
     return (pos_value, regular_value, str_dep)
 
 
@@ -48,7 +48,7 @@ if __name__ == "__main__":
 ```python
 import asyncio
 
-from fastapi import Depends as _
+from fastapi import Depends
 from fastapi import Request
 from fastapi_depends import DepContainer, FakeRequest
 
@@ -68,7 +68,7 @@ async def str_dep(request: Request):
 
 
 @app.inject
-async def main(pos_value: str, regular_value: str, str_dep=_(str_dep)):
+async def main(pos_value: str, regular_value: str, str_dep=Depends(str_dep)):
     return (pos_value, regular_value, str_dep)
 
 
@@ -82,7 +82,7 @@ if __name__ == "__main__":
 ```python
 import asyncio
 
-from fastapi import Depends as _
+from fastapi import Depends
 from fastapi import Request
 
 from fastapi_depends import DepContainer, FakeRequest
@@ -103,7 +103,7 @@ async def str_dep(request: Request):
 
 
 @app.register("my_key")
-async def main(pos_value: str, regular_value: str, str_dep=_(str_dep)):
+async def main(pos_value: str, regular_value: str, str_dep=Depends(str_dep)):
     return (pos_value, regular_value, str_dep)
 
 
