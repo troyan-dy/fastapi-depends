@@ -2,9 +2,25 @@
 
 Use your FastAPI dependencies in plain python code
 
-# Usage
+[PYPI](https://pypi.org/project/fastapi-depends/)
 
-## Simple
+## Install
+
+pip
+
+```bash
+pip install fastapi-depends
+```
+
+poetry
+
+```bash
+poetry add fastapi-depends
+```
+
+## Usage
+
+### Simple
 
 ```python
 import asyncio
@@ -27,7 +43,7 @@ if __name__ == "__main__":
     print(f"{result=})
 ```
 
-## With your application
+### With your application
 
 ```python
 import asyncio
@@ -61,7 +77,7 @@ if __name__ == "__main__":
     print(f"{result=}")
 ```
 
-## Register the method in your application
+### Register the method in your application
 
 ```python
 import asyncio
