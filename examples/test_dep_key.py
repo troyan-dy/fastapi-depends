@@ -1,9 +1,20 @@
 import asyncio
 
-from fastapi import Depends as _
-from fastapi import Request
+from fastapi import Depends, Request
 
-from fastapi_depends import DepContainer, FakeRequest
+from fastapi_depends import DepContainer
+
+
+async def str_dep(request: Request):
+    return request.app.app_value
+
+
+container = DepContainer()
+
+
+@container.register("my_key")
+async def main(pos_value: str, regular_value: str, str_dep=Depends(str_dep)):
+    return (pos_value, regular_value, str_dep)
 
 
 class MyApp:
@@ -11,20 +22,9 @@ class MyApp:
         self.app_value = app_value
 
 
-my_app = MyApp(app_value="app_value")
-
-app = DepContainer(request=FakeRequest(app=my_app))
-
-
-async def str_dep(request: Request):
-    return request.app.app_value
-
-
-@app.register("my_key")
-async def main(pos_value: str, regular_value: str, str_dep=_(str_dep)):
-    return (pos_value, regular_value, str_dep)
-
+app = MyApp(app_value="app_value")
+container.setup_app(app)
 
 if __name__ == "__main__":
-    result = asyncio.run(my_app.my_key("pos_value", regular_value="regular_value"))
+    result = asyncio.run(container.key_func_map["my_key"]("pos_value", regular_value="regular_value"))
     print(f"{result=}")

@@ -1,4 +1,4 @@
-from typing import Any, Callable, Dict, Tuple, cast
+from typing import Any, Callable, cast
 
 from fastapi import Request
 from fastapi.dependencies.utils import (
@@ -13,21 +13,23 @@ from fastapi.dependencies.utils import (
 
 from fastapi_depends.fake_request import FakeRequest
 
+FuncType = Callable[..., Any]
+
 
 async def solve_dependencies(
     *,
     request: FakeRequest,
-    dependant,
+    dependant: Dependant,
     dependency_overrides_provider=None,
-    dependency_cache=None,
-) -> Tuple[Dict[str, Any]]:
-    values: Dict[str, Any] = {}
+    dependency_cache: dict[str, Any] = None,
+) -> tuple[dict[str, Any]]:
+    values: dict[str, Any] = {}
 
     dependency_cache = {}
     sub_dependant: Dependant
     for sub_dependant in dependant.dependencies:
         sub_dependant.call = cast(Callable[..., Any], sub_dependant.call)
-        sub_dependant.cache_key = cast(Tuple[Callable[..., Any], Tuple[str]], sub_dependant.cache_key)
+        sub_dependant.cache_key = cast(tuple[Callable[..., Any], tuple[str]], sub_dependant.cache_key)
         call = sub_dependant.call
         use_sub_dependant = sub_dependant
         if dependency_overrides_provider and dependency_overrides_provider.dependency_overrides:
@@ -70,9 +72,6 @@ async def solve_dependencies(
     if dependant.request_param_name and isinstance(request, Request):
         values[dependant.request_param_name] = request
     return values, None, dependency_cache
-
-
-FuncType = Callable[..., Any]
 
 
 async def get_values(func: FuncType, request: FakeRequest):

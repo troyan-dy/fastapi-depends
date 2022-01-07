@@ -1,6 +1,6 @@
 import asyncio
 
-from fastapi import Depends as _
+from fastapi import Depends
 
 from fastapi_depends import inject
 
@@ -10,7 +10,7 @@ async def str_dep():
 
 
 @inject
-async def main(pos_value: str, regular_value: str, str_dep=_(str_dep)):
+async def main(pos_value: str, regular_value: str, str_dep=Depends(str_dep)):
     return (pos_value, regular_value, str_dep)
 
 
