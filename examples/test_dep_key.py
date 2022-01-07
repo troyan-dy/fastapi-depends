@@ -10,10 +10,15 @@ async def str_dep(request: Request):
 
 
 container = DepContainer()
+import pydantic
+
+
+class MyType(pydantic.BaseModel):
+    key: str
 
 
 @container.register("my_key")
-async def main(pos_value: str, regular_value: str, str_dep=Depends(str_dep)):
+async def main(pos_value: MyType, regular_value: str, str_dep=Depends(str_dep)):
     return (pos_value, regular_value, str_dep)
 
 

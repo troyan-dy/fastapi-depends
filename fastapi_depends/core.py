@@ -1,9 +1,10 @@
-from typing import Any, Callable, cast
+from typing import Any, Callable, Optional, cast
 
-from fastapi import Request
+from fastapi import Request, params
 from fastapi.dependencies.utils import (
     Dependant,
-    get_dependant,
+    get_param_sub_dependant,
+    get_typed_signature,
     is_async_gen_callable,
     is_coroutine_callable,
     is_gen_callable,
@@ -14,6 +15,25 @@ from fastapi.dependencies.utils import (
 from fastapi_depends.fake_request import FakeRequest
 
 FuncType = Callable[..., Any]
+
+
+def get_dependant(
+    *,
+    path: str,
+    call: Callable[..., Any],
+    name: Optional[str] = None,
+    security_scopes: Optional[list[str]] = None,
+    use_cache: bool = True,
+) -> Dependant:
+    endpoint_signature = get_typed_signature(call)
+    signature_params = endpoint_signature.parameters
+    dependant = Dependant(call=call, name=name, path=path, use_cache=use_cache)
+    for _, param in signature_params.items():
+        if isinstance(param.default, params.Depends):
+            sub_dependant = get_param_sub_dependant(param=param, path=path, security_scopes=security_scopes)
+            dependant.dependencies.append(sub_dependant)
+            continue
+    return dependant
 
 
 async def solve_dependencies(
