@@ -86,7 +86,7 @@ if __name__ == "__main__":
 
 ### Register the method in your application
 
-An example similar to the previous one, but only for a method you can specify a key with which it will be written in `DepContainer.key_func_map`
+An example similar to the previous one, but only for a method you can specify a key with which it will be written in `DepContainer.callback_map`
 
 ```python
 import asyncio
@@ -117,7 +117,7 @@ app = MyApp(app_value="app_value")
 container.setup_app(app)
 
 if __name__ == "__main__":
-    result = asyncio.run(container.key_func_map.my_key("pos_value", regular_value="regular_value"))
+    result = asyncio.run(container.callback_map.my_key("pos_value", regular_value="regular_value"))
     print(f"{result=}")
 
 
