@@ -117,7 +117,7 @@ app = MyApp(app_value="app_value")
 container.setup_app(app)
 
 if __name__ == "__main__":
-    result = asyncio.run(container.callback_map.my_key("pos_value", regular_value="regular_value"))
+    result = asyncio.run(container.callback_map["my_key"]("pos_value", regular_value="regular_value"))
     print(f"{result=}")
 
 
