@@ -5,7 +5,7 @@ from fastapi import Request
 
 
 class FakeRequest(Request):
-    __slots__ = ["app", "scope"]
+    __slots__ = ("app", "scope")
 
     def __init__(self, app: Any) -> None:
         self.app = app  # type: ignore[misc]

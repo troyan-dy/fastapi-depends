@@ -25,5 +25,5 @@ app = MyApp(app_value="app_value")
 container.setup_app(app)
 
 if __name__ == "__main__":
-    result = asyncio.run(main("pos_value", regular_value="regular_value"))
-    print(f"{result=}")
+    call_result = asyncio.run(main("pos_value", regular_value="regular_value"))
+    print(f"{call_result=}")

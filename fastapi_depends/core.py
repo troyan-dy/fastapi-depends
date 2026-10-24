@@ -1,85 +1,52 @@
-import inspect
-from contextlib import AsyncExitStack, asynccontextmanager, contextmanager
 from typing import Any, Callable, Optional, cast
 
 from fastapi import Request, params
-from fastapi.concurrency import contextmanager_in_threadpool, run_in_threadpool
 from fastapi.dependencies.models import Dependant
 from fastapi.dependencies.utils import get_dependant as get_sub_dependant
 from fastapi.dependencies.utils import get_typed_signature
 
+from fastapi_depends.callables import call_dependency
 from fastapi_depends.fake_request import FakeRequest
 
 FuncType = Callable[..., Any]
-CacheKey = tuple[Callable[..., Any], tuple[str, ...]]
-
-
-def _get_callable(call: Callable[..., Any]) -> Any:
-    if inspect.isroutine(call):
-        return call
-    return getattr(call, "__call__", None)
-
-
-def is_gen_callable(call: Callable[..., Any]) -> bool:
-    return inspect.isgeneratorfunction(_get_callable(call))
-
-
-def is_async_gen_callable(call: Callable[..., Any]) -> bool:
-    return inspect.isasyncgenfunction(_get_callable(call))
-
-
-def is_coroutine_callable(call: Callable[..., Any]) -> bool:
-    return inspect.iscoroutinefunction(_get_callable(call))
-
-
-def get_cache_key(dependant: Dependant) -> CacheKey:
-    # security scopes are not part of the key, as in the previous implementation
-    return cast(Callable[..., Any], dependant.call), ()
-
-
-async def solve_generator(*, call: Callable[..., Any], stack: AsyncExitStack, sub_values: dict[str, Any]) -> Any:
-    if is_async_gen_callable(call):
-        cm = asynccontextmanager(call)(**sub_values)
-    else:
-        cm = contextmanager_in_threadpool(contextmanager(call)(**sub_values))
-    return await stack.enter_async_context(cm)
+ScopesKey = tuple[str, ...]
+CacheKey = tuple[FuncType, ScopesKey]
+DepValues = dict[str, Any]
+DepCache = dict[CacheKey, Any]
+SolvedDependencies = tuple[DepValues, None, DepCache]
 
 
 def get_dependant(
     *,
     path: str,
-    call: Callable[..., Any],
+    call: FuncType,
     name: Optional[str] = None,
-    own_oauth_scopes: Optional[list[str]] = None,
-    parent_oauth_scopes: Optional[list[str]] = None,
     use_cache: bool = True,
 ) -> Dependant:
-    endpoint_signature = get_typed_signature(call)
-    signature_params = endpoint_signature.parameters
-    dependant = Dependant(
-        call=call,
-        name=name,
-        path=path,
-        use_cache=use_cache,
-        own_oauth_scopes=own_oauth_scopes,
-        parent_oauth_scopes=parent_oauth_scopes,
-    )
-    current_scopes = (parent_oauth_scopes or []) + (own_oauth_scopes or [])
-    for param_name, param in signature_params.items():
-        if isinstance(param.default, params.Depends):
-            depends = param.default
-            sub_own_oauth_scopes = list(depends.scopes or []) if isinstance(depends, params.Security) else []
-            sub_dependant = get_sub_dependant(
-                path=path,
-                call=depends.dependency or param.annotation,
-                name=param_name,
-                own_oauth_scopes=sub_own_oauth_scopes,
-                parent_oauth_scopes=current_scopes,
-                use_cache=depends.use_cache,
-            )
-            dependant.dependencies.append(sub_dependant)
-            continue
+    dependant = Dependant(call=call, name=name, path=path, use_cache=use_cache)
+    for param_name, sig_param in get_typed_signature(call).parameters.items():
+        if isinstance(sig_param.default, params.Depends):
+            dependant.dependencies.append(_get_param_sub_dependant(param_name, sig_param.default, sig_param, path))
     return dependant
+
+
+def _get_param_sub_dependant(param_name: str, depends: params.Depends, sig_param: Any, path: str) -> Dependant:
+    return get_sub_dependant(
+        path=path,
+        call=depends.dependency or sig_param.annotation,
+        name=param_name,
+        use_cache=depends.use_cache,
+    )
+
+
+def _resolve_override(sub_dependant: Dependant, overrides_provider: Any) -> tuple[FuncType, Dependant]:
+    call = cast(FuncType, sub_dependant.call)
+    if not (overrides_provider and overrides_provider.dependency_overrides):
+        return call, sub_dependant
+    overrides = getattr(overrides_provider, "dependency_overrides", {})
+    call = overrides.get(call, call)
+    path = cast(str, sub_dependant.path)
+    return call, get_dependant(path=path, call=call, name=sub_dependant.name)
 
 
 async def solve_dependencies(
@@ -87,60 +54,68 @@ async def solve_dependencies(
     request: FakeRequest,
     dependant: Dependant,
     dependency_overrides_provider: Any = None,
-    dependency_cache: Optional[dict[CacheKey, Any]] = None,
-) -> tuple[dict[str, Any], None, dict[CacheKey, Any]]:
-    values: dict[str, Any] = {}
+    dependency_cache: Optional[DepCache] = None,
+) -> SolvedDependencies:
+    dep_values: DepValues = {}
 
     dependency_cache = {}
-    sub_dependant: Dependant
     for sub_dependant in dependant.dependencies:
-        sub_dependant.call = cast(Callable[..., Any], sub_dependant.call)
-        cache_key = get_cache_key(sub_dependant)
-        call = sub_dependant.call
-        use_sub_dependant = sub_dependant
-        if dependency_overrides_provider and dependency_overrides_provider.dependency_overrides:
-            original_call = sub_dependant.call
-            call = getattr(dependency_overrides_provider, "dependency_overrides", {}).get(original_call, original_call)
-            use_path: str = sub_dependant.path  # type: ignore
-            use_sub_dependant = get_dependant(
-                path=use_path,
-                call=call,
-                name=sub_dependant.name,
-                own_oauth_scopes=sub_dependant.own_oauth_scopes,
-                parent_oauth_scopes=sub_dependant.parent_oauth_scopes,
-            )
-
-        solved_result = await solve_dependencies(
+        # dependencies are solved one by one: order matters for the cache and the exit stack
+        solved = await _solve_sub_dependant(  # noqa: WPS476
             request=request,
-            dependant=use_sub_dependant,
-            dependency_overrides_provider=dependency_overrides_provider,
+            sub_dependant=sub_dependant,
+            overrides_provider=dependency_overrides_provider,
             dependency_cache=dependency_cache,
         )
-        (
-            sub_values,
-            _,
-            sub_dependency_cache,
-        ) = solved_result
-        dependency_cache.update(sub_dependency_cache)
-
-        if sub_dependant.use_cache and cache_key in dependency_cache:
-            solved = dependency_cache[cache_key]
-        elif is_gen_callable(call) or is_async_gen_callable(call):
-            stack = cast(AsyncExitStack, request.scope.get("func_stack"))
-            solved = await solve_generator(call=call, stack=stack, sub_values=sub_values)
-        elif is_coroutine_callable(call):
-            solved = await call(**sub_values)
-        else:
-            solved = await run_in_threadpool(call, **sub_values)
         if sub_dependant.name is not None:
-            values[sub_dependant.name] = solved
-        if cache_key not in dependency_cache:
-            dependency_cache[cache_key] = solved
+            dep_values[sub_dependant.name] = solved
     if dependant.request_param_name and isinstance(request, Request):
-        values[dependant.request_param_name] = request
-    return values, None, dependency_cache
+        dep_values[dependant.request_param_name] = request
+    return dep_values, None, dependency_cache
 
 
-async def get_values(func: FuncType, request: FakeRequest) -> dict[str, Any]:
-    values, _, _ = await solve_dependencies(request=request, dependant=get_dependant(call=func, path="my_topic"))
-    return values
+async def _solve_sub_dependant(
+    *,
+    request: FakeRequest,
+    sub_dependant: Dependant,
+    overrides_provider: Any,
+    dependency_cache: DepCache,
+) -> Any:
+    call, use_sub_dependant = _resolve_override(sub_dependant, overrides_provider)
+    sub_values, _, sub_dependency_cache = await solve_dependencies(
+        request=request,
+        dependant=use_sub_dependant,
+        dependency_overrides_provider=overrides_provider,
+        dependency_cache=dependency_cache,
+    )
+    dependency_cache.update(sub_dependency_cache)
+    return await _call_or_get_cached(
+        call=call,
+        sub_dependant=sub_dependant,
+        request=request,
+        sub_values=sub_values,
+        dependency_cache=dependency_cache,
+    )
+
+
+async def _call_or_get_cached(
+    *,
+    call: FuncType,
+    sub_dependant: Dependant,
+    request: FakeRequest,
+    sub_values: DepValues,
+    dependency_cache: DepCache,
+) -> Any:
+    # security scopes are not part of the cache key, as in the previous implementation
+    cache_key: CacheKey = (cast(FuncType, sub_dependant.call), ())
+    if sub_dependant.use_cache and cache_key in dependency_cache:
+        return dependency_cache[cache_key]
+    solved = await call_dependency(call=call, stack=request.scope["func_stack"], sub_values=sub_values)
+    dependency_cache.setdefault(cache_key, solved)
+    return solved
+
+
+async def get_values(func: FuncType, request: FakeRequest) -> DepValues:
+    dependant = get_dependant(call=func, path="my_topic")
+    dep_values, _, _ = await solve_dependencies(request=request, dependant=dependant)
+    return dep_values

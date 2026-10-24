@@ -18,31 +18,22 @@ class DepContainer:
         self.request = FakeRequest(app=app)
 
     def inject(self, func: FuncType) -> FuncType:
-        async def inner(*args: Any, **kwargs: Any) -> Any:
-            values = await get_values(func, request=self.request)
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
+            dep_values = await get_values(func, request=self.request)
+            kwargs = {**kwargs, **dep_values}
             try:
-                kwargs = {**kwargs, **values}
                 return await func(*args, **kwargs)
             except Exception:
                 raise
             finally:
                 await self.request.scope["func_stack"].__aexit__(None, None, None)
 
-        return inner
+        return wrapper
 
     def register(self, key: str) -> Callable[[FuncType], FuncType]:
-        def inject(func: FuncType) -> FuncType:
-            async def inner(*args: Any, **kwargs: Any) -> Any:
-                values = await get_values(func, request=self.request)
-                try:
-                    kwargs = {**kwargs, **values}
-                    return await func(*args, **kwargs)
-                except Exception:
-                    raise
-                finally:
-                    await self.request.scope["func_stack"].__aexit__(None, None, None)
+        def decorator(func: FuncType) -> FuncType:
+            wrapper = self.inject(func)
+            self._key_func_map[key] = wrapper
+            return wrapper
 
-            self._key_func_map[key] = inner
-            return inner
-
-        return inject
+        return decorator
