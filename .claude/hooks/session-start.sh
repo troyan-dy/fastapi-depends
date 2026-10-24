@@ -17,6 +17,9 @@ fi
 export POETRY_VIRTUALENVS_IN_PROJECT=true
 poetry install --no-interaction
 
+# Sanity check: the wemake-python-styleguide flake8 plugin is installed
+poetry run python -c "import wemake_python_styleguide"
+
 if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
   echo "export PATH=\"$PWD/.venv/bin:$HOME/.local/bin:\$PATH\"" >> "$CLAUDE_ENV_FILE"
 fi

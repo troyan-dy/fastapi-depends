@@ -23,6 +23,7 @@ black = "^26.10.1"
 isort = "^9.0.2"
 flake8 = "^7.4.1"
 mypy = "^2.4.0"
+wemake-python-styleguide = {version = ">=1.8.1", python = ">=3.11,<4.0"}
 
 
 [build-system]

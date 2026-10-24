@@ -25,6 +25,8 @@ jobs:
           poetry run black --check .
           poetry run isort --check-only .
           poetry run flake8
+      - name: wemake-python-styleguide
+        run: poetry run flake8 . --select=WPS
       - name: Type check
         run: poetry run mypy fastapi_depends
       - name: Run examples
