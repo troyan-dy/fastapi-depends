@@ -1,31 +1,38 @@
-[tool.poetry]
+[project]
 name = "fastapi-depends"
 version = "0.2.1"
 description = "Use your FastAPI dependencies in plain python code"
-authors = ["troyan-dy"]
+authors = [{ name = "troyan-dy" }]
+license = "MIT"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.162.0",
+]
+
+[project.urls]
 repository = "https://github.com/troyan-dy/fastapi-depends"
 homepage = "https://github.com/troyan-dy/fastapi-depends"
 documentation = "https://github.com/troyan-dy/fastapi-depends#readme"
-license = "MIT"
 
-[tool.poetry.dependencies]
-python = "^3.9"
-fastapi = "^0.70.1"
+[tool.poetry]
+packages = [{ include = "fastapi_depends" }]
 
-[tool.poetry.dev-dependencies]
-black = "^20.8b1"
-isort = "^5.7.0"
-flake8 = "^3.8.4"
-mypy = "^0.910"
+[tool.poetry.group.dev.dependencies]
+black = "^26.10.1"
+isort = "^9.0.2"
+flake8 = "^7.4.1"
+mypy = "^2.4.0"
+wemake-python-styleguide = {version = ">=1.8.1", python = ">=3.11,<4.0"}
 
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
+requires = ["poetry-core>=2.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.black]
 line-length = 120
-target-version = ['py38']
+target-version = ['py311']
 
 [tool.isort]
 line_length=120
@@ -35,7 +42,7 @@ force_grid_wrap=0
 use_parentheses=true
 
 [tool.mypy]
-python_version = "3.9"
+python_version = "3.11"
 warn_redundant_casts = true
 disallow_any_generics = true
 disallow_subclassing_any = false

@@ -1,5 +1,6 @@
 import asyncio
 
+import pydantic
 from fastapi import Depends, Request
 
 from fastapi_depends import DepContainer
@@ -10,7 +11,6 @@ async def str_dep(request: Request):
 
 
 container = DepContainer()
-import pydantic
 
 
 class MyType(pydantic.BaseModel):
@@ -31,5 +31,5 @@ app = MyApp(app_value="app_value")
 container.setup_app(app)
 
 if __name__ == "__main__":
-    result = asyncio.run(container.callback_map["my_key"]("pos_value", regular_value="regular_value"))
-    print(f"{result=}")
+    call_result = asyncio.run(container.callback_map["my_key"]("pos_value", regular_value="regular_value"))
+    print(f"{call_result=}")

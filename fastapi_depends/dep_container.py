@@ -1,3 +1,5 @@
+from typing import Any, Callable
+
 from fastapi import FastAPI
 
 from fastapi_depends.core import FuncType, get_values
@@ -6,41 +8,32 @@ from fastapi_depends.fake_request import FakeRequest
 
 class DepContainer:
     def __init__(self) -> None:
-        self._key_func_map = {}
+        self._key_func_map: dict[str, FuncType] = {}
 
     @property
-    def callback_map(self):
+    def callback_map(self) -> dict[str, FuncType]:
         return self._key_func_map
 
-    def setup_app(self, app: FastAPI):
+    def setup_app(self, app: FastAPI) -> None:
         self.request = FakeRequest(app=app)
 
-    def inject(self, func: FuncType):
-        async def inner(*args, **kwargs):
-            values = await get_values(func, request=self.request)
+    def inject(self, func: FuncType) -> FuncType:
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
+            dep_values = await get_values(func, request=self.request)
+            kwargs = {**kwargs, **dep_values}
             try:
-                kwargs = {**kwargs, **values}
                 return await func(*args, **kwargs)
             except Exception:
                 raise
             finally:
-                await self.request.scope.get("func_stack").__aexit__(None, None, None)
+                await self.request.scope["func_stack"].__aexit__(None, None, None)
 
-        return inner
+        return wrapper
 
-    def register(self, key: str):
-        def inject(func: FuncType):
-            async def inner(*args, **kwargs):
-                values = await get_values(func, request=self.request)
-                try:
-                    kwargs = {**kwargs, **values}
-                    return await func(*args, **kwargs)
-                except Exception:
-                    raise
-                finally:
-                    await self.request.scope.get("func_stack").__aexit__(None, None, None)
+    def register(self, key: str) -> Callable[[FuncType], FuncType]:
+        def decorator(func: FuncType) -> FuncType:
+            wrapper = self.inject(func)
+            self._key_func_map[key] = wrapper
+            return wrapper
 
-            self._key_func_map[key] = inner
-            return inner
-
-        return inject
+        return decorator
