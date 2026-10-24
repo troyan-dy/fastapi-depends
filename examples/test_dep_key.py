@@ -1,5 +1,6 @@
 import asyncio
 
+import pydantic
 from fastapi import Depends, Request
 
 from fastapi_depends import DepContainer
@@ -10,7 +11,6 @@ async def str_dep(request: Request):
 
 
 container = DepContainer()
-import pydantic
 
 
 class MyType(pydantic.BaseModel):
